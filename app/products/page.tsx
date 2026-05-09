@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { Navigation } from "@/components/navigation"
@@ -9,6 +9,7 @@ import { StaggerContainer, StaggerItem } from "@/components/motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Spinner } from "@/components/ui/spinner"
 import { 
   Search, 
   Grid3X3, 
@@ -151,7 +152,7 @@ const products = [
   },
 ]
 
-export default function ProductsPage() {
+function ProductsContent() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
@@ -323,6 +324,14 @@ export default function ProductsPage() {
 
       <Footer />
     </main>
+  )
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-background"><Spinner className="h-8 w-8 text-accent" /></div>}>
+      <ProductsContent />
+    </Suspense>
   )
 }
 

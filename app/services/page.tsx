@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { Navigation } from "@/components/navigation"
@@ -7,6 +8,7 @@ import { Footer } from "@/components/footer"
 import { StaggerContainer, StaggerItem } from "@/components/motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Spinner } from "@/components/ui/spinner"
 import { 
   Camera, 
   Wrench, 
@@ -94,7 +96,7 @@ const stats = [
   { icon: Award, value: "4.9★", label: "Rating" },
 ]
 
-export default function ServicesPage() {
+function ServicesContent() {
   return (
     <main className="min-h-screen bg-background">
       <Navigation />
@@ -238,5 +240,13 @@ export default function ServicesPage() {
 
       <Footer />
     </main>
+  )
+}
+
+export default function ServicesPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-background"><Spinner className="h-8 w-8 text-accent" /></div>}>
+      <ServicesContent />
+    </Suspense>
   )
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { Navigation } from "@/components/navigation"
@@ -7,6 +8,7 @@ import { Footer } from "@/components/footer"
 import { StaggerContainer, StaggerItem } from "@/components/motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Spinner } from "@/components/ui/spinner"
 import { 
   Check, 
   ArrowRight,
@@ -106,7 +108,7 @@ const amcPlans = [
   },
 ]
 
-export default function PricingPage() {
+function PricingContent() {
   return (
     <TooltipProvider>
       <main className="min-h-screen bg-background">
@@ -124,7 +126,7 @@ export default function PricingPage() {
             >
               <span className="section-kicker">Pricing</span>
               <h1 className="mt-4 text-display text-4xl sm:text-5xl text-foreground">
-                Simple, transparent <span className="teal-gradient-text">pricing</span>
+                Simple, transparent <span className="brand-gradient-text italic px-2">pricing</span>
               </h1>
               <p className="mt-5 text-lg text-muted-foreground">
                 All-inclusive packages with professional installation. 
@@ -145,62 +147,56 @@ export default function PricingPage() {
                     transition={{ duration: 0.3 }}
                     className={`premium-card h-full p-8 ${
                       plan.popular 
-                        ? "border-accent/35 bg-accent/10" 
-                        : ""
+                        ? "border-accent shadow-xl shadow-accent/5 ring-1 ring-accent" 
+                        : "border-border/50"
                     }`}
                   >
                     {plan.popular && (
-                      <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-accent text-accent-foreground border-0">
+                      <Badge className="mb-4 bg-accent text-accent-foreground border-0">
                         Most Popular
                       </Badge>
                     )}
-
-                    {/* Header */}
+                    <h3 className="text-headline text-2xl text-foreground mb-2">{plan.name}</h3>
+                    <p className="text-sm text-muted-foreground mb-6">{plan.description}</p>
                     <div className="mb-6">
-                      <h2 className="text-headline text-2xl text-foreground mb-2">
-                        {plan.name}
-                      </h2>
-                      <p className="text-sm text-muted-foreground">
-                        {plan.description}
-                      </p>
-                    </div>
-
-                    {/* Price */}
-                    <div className="mb-6">
-                      <span className="text-4xl font-bold text-foreground">
+                      <span className="text-4xl font-semibold text-foreground">
                         Rs {plan.price.toLocaleString()}
                       </span>
-                      <span className="text-muted-foreground ml-2">one-time</span>
-                      <div className="text-sm text-accent mt-1">{plan.cameras}</div>
+                    </div>
+                    
+                    <div className="space-y-4 mb-8">
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-accent" />
+                        <span className="text-sm font-medium text-foreground">{plan.cameras}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {plan.features.map((feature, j) => (
+                          <div key={j} className="flex items-center gap-2">
+                            <Check className="w-4 h-4 text-accent flex-shrink-0" />
+                            <span className="text-sm text-muted-foreground">{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {plan.notIncluded.length > 0 && (
+                        <div className="space-y-2 pt-2">
+                          {plan.notIncluded.map((feature, j) => (
+                            <div key={j} className="flex items-center gap-2 opacity-40">
+                              <Check className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-sm text-muted-foreground line-through">{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Features */}
-                    <div className="space-y-3 mb-8">
-                      {plan.features.map((feature, j) => (
-                        <div key={j} className="flex items-center gap-3">
-                          <Check className="w-4 h-4 text-accent flex-shrink-0" />
-                          <span className="text-sm text-foreground">{feature}</span>
-                        </div>
-                      ))}
-                      {plan.notIncluded.map((feature, j) => (
-                        <div key={j} className="flex items-center gap-3 opacity-50">
-                          <div className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-sm text-muted-foreground line-through">{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* CTA */}
-                    <Link href="/booking" className="block">
-                      <Button 
-                        className={`w-full h-12 ${
-                          plan.popular 
-                            ? "bg-primary text-primary-foreground hover:bg-primary/90" 
-                            : "bg-accent text-accent-foreground hover:bg-accent/90"
-                        }`}
-                      >
-                        Get Started
-                        <ArrowRight className="w-4 h-4 ml-2" />
+                    <Link href={`/booking?plan=${plan.name.toLowerCase()}`}>
+                      <Button className={`w-full h-12 rounded-xl ${
+                        plan.popular 
+                          ? "bg-accent text-accent-foreground hover:bg-accent/90" 
+                          : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                      }`}>
+                        Choose {plan.name}
+                        <ArrowRight className="ml-2 w-4 h-4" />
                       </Button>
                     </Link>
                   </motion.div>
@@ -210,40 +206,31 @@ export default function PricingPage() {
           </div>
         </section>
 
-        {/* AMC Plans */}
-        <section className="py-20">
-          <div className="max-w-4xl mx-auto px-6 lg:px-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-center mb-12"
-            >
-              <span className="section-kicker">Maintenance Plans</span>
-              <h2 className="mt-4 text-display text-3xl sm:text-4xl text-foreground">
-                Keep your system running
+        {/* AMC Section */}
+        <section className="py-24 bg-secondary/30">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="max-w-2xl mb-16">
+              <span className="section-kicker">Maintenance</span>
+              <h2 className="text-headline text-3xl sm:text-4xl text-foreground mt-4">
+                Annual Maintenance Contracts
               </h2>
-              <p className="mt-4 text-muted-foreground max-w-xl mx-auto">
-                Annual maintenance contracts ensure peak performance and extend the life of your equipment.
+              <p className="mt-4 text-lg text-muted-foreground">
+                Keep your security system running smoothly with our comprehensive AMC plans.
               </p>
-            </motion.div>
+            </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl">
               {amcPlans.map((plan, i) => (
                 <motion.div
                   key={plan.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, x: i === 0 ? -20 : 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: i * 0.1 }}
-                  whileHover={{ y: -4 }}
-                  className="premium-card p-6"
+                  className="premium-card p-8 border-border/50"
                 >
-                  <h3 className="text-headline text-xl text-foreground mb-2">
-                    {plan.name}
-                  </h3>
-                  <div className="mb-4">
-                    <span className="text-3xl font-bold text-foreground">
+                  <h3 className="text-headline text-xl text-foreground mb-2">{plan.name}</h3>
+                  <div className="mb-6">
+                    <span className="text-3xl font-semibold text-foreground">
                       Rs {plan.price.toLocaleString()}
                     </span>
                     <span className="text-muted-foreground ml-2">{plan.period}</span>
@@ -297,5 +284,13 @@ export default function PricingPage() {
         <Footer />
       </main>
     </TooltipProvider>
+  )
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-background"><Spinner className="h-8 w-8 text-accent" /></div>}>
+      <PricingContent />
+    </Suspense>
   )
 }
