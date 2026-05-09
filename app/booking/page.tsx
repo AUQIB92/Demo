@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
+import { Spinner } from "@/components/ui/spinner"
 
 const serviceTypes = [
   {
@@ -78,7 +79,7 @@ const urgencyLevels = [
   { id: "emergency", label: "Emergency", multiplier: 2, description: "Same day service" },
 ]
 
-export default function BookingPage() {
+function BookingContent() {
   const [step, setStep] = useState(1)
   const [selectedService, setSelectedService] = useState<string | null>(null)
   const [selectedUrgency, setSelectedUrgency] = useState("standard")
@@ -771,5 +772,13 @@ export default function BookingPage() {
 
       <Footer />
     </main>
+  )
+}
+
+export default function BookingPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-background"><Spinner className="h-8 w-8 text-accent" /></div>}>
+      <BookingContent />
+    </Suspense>
   )
 }
