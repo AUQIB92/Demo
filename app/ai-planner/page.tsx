@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { Slider } from "@/components/ui/slider"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Spinner } from "@/components/ui/spinner"
 
 const propertyTypes = [
   { id: "home", icon: Home, label: "Home" },
@@ -47,7 +48,7 @@ interface Recommendation {
   features: string[]
 }
 
-export default function AIPlannerPage() {
+function AIPlannerContent() {
   const [step, setStep] = useState(1)
   const [propertyType, setPropertyType] = useState<string | null>(null)
   const [floors, setFloors] = useState(1)
@@ -434,5 +435,13 @@ export default function AIPlannerPage() {
 
       <Footer />
     </main>
+  )
+}
+
+export default function AIPlannerPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-background"><Spinner className="h-8 w-8 text-accent" /></div>}>
+      <AIPlannerContent />
+    </Suspense>
   )
 }
