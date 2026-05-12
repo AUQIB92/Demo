@@ -43,6 +43,8 @@ export default function SignupPage() {
 
     const supabase = createClient()
 
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hrsecurity.vercel.app'
+
     const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
@@ -51,6 +53,7 @@ export default function SignupPage() {
           full_name: formData.fullName,
           phone: formData.phone,
         },
+        emailRedirectTo: `${siteUrl}/auth/login`,
       },
     })
 

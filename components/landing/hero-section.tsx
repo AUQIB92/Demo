@@ -5,8 +5,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { motion, useScroll, useTransform, useInView } from "framer-motion"
 import {
-  ArrowRight,
-  CheckCircle2,
   Shield,
   Smartphone,
   Sparkles,
@@ -28,6 +26,7 @@ export function HeroSection() {
   const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0])
   const imageY = useTransform(scrollYProgress, [0, 1], [0, -100])
   const imageScale = useTransform(scrollYProgress, [0, 0.5], [1, 1.05])
+  const orbY = useTransform(scrollYProgress, [0, 1], [0, 150])
 
   const stats = [
     { value: 50, label: "K+ installations", suffix: "K+" },
@@ -62,7 +61,7 @@ export function HeroSection() {
       />
       <motion.div 
         className="spotlight-orb left-[-10%] top-[30%] h-[400px] w-[400px] bg-teal-500/5"
-        style={{ y: useTransform(scrollYProgress, [0, 1], [0, 150]) }}
+        style={{ y: orbY }}
       />
 
       <div className="section-inner relative z-10">
@@ -143,20 +142,12 @@ export function HeroSection() {
               {stats.map((stat, index) => (
                 <div key={index} className="flex flex-col">
                   <div className="text-3xl font-bold tracking-tight text-foreground">
-                    {stat.decimals ? (
-                      <AnimatedCounter 
-                        to={stat.value} 
-                        suffix={typeof stat.suffix === 'number' ? "" : stat.suffix || ""} 
-                        prefix={stat.prefix || ""}
-                        decimals={stat.decimals}
-                      />
-                    ) : (
-                      <AnimatedCounter 
-                        to={stat.value} 
-                        suffix={typeof stat.suffix === 'number' ? "" : stat.suffix || ""} 
-                        prefix={stat.prefix || ""}
-                      />
-                    )}
+                    <AnimatedCounter 
+                      to={stat.value} 
+                      suffix={stat.suffix || ""} 
+                      prefix={stat.prefix || ""}
+                      decimals={stat.decimals ?? 0}
+                    />
                   </div>
                   <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
                     {stat.label}

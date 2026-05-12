@@ -161,7 +161,7 @@ export async function POST(request: Request) {
               </div>` : ''}
             </div>
             <div class="cta">
-              <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard">
+              <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://hrsecurity.vercel.app'}/dashboard">
                 ${cfg.cta} →
               </a>
             </div>
