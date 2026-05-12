@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
@@ -8,10 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Wrench, 
-  Settings, 
-  ClipboardCheck, 
+import { createClient } from "@/lib/supabase/client"
+import {
+  Wrench,
+  Settings,
+  ClipboardCheck,
   Camera,
   MapPin,
   Calendar,
@@ -21,7 +23,11 @@ import {
   Zap,
   CheckCircle2,
   Copy,
-  Smartphone
+  Smartphone,
+  Loader2,
+  Upload,
+  ImageIcon,
+  X,
 } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import {
@@ -73,6 +79,29 @@ const timeSlots = [
   "04:00 PM - 06:00 PM",
 ]
 
+const districts = [
+  { name: "Anantnag", division: "kashmir", charge: 100 },
+  { name: "Kulgam", division: "kashmir", charge: 100 },
+  { name: "Pulwama", division: "kashmir", charge: 300 },
+  { name: "Shopian", division: "kashmir", charge: 300 },
+  { name: "Budgam", division: "kashmir", charge: 300 },
+  { name: "Srinagar", division: "kashmir", charge: 300 },
+  { name: "Ganderbal", division: "kashmir", charge: 300 },
+  { name: "Bandipora", division: "kashmir", charge: 300 },
+  { name: "Baramulla", division: "kashmir", charge: 300 },
+  { name: "Kupwara", division: "kashmir", charge: 300 },
+  { name: "Jammu", division: "jammu", charge: 500 },
+  { name: "Samba", division: "jammu", charge: 500 },
+  { name: "Kathua", division: "jammu", charge: 500 },
+  { name: "Udhampur", division: "jammu", charge: 500 },
+  { name: "Reasi", division: "jammu", charge: 500 },
+  { name: "Rajouri", division: "jammu", charge: 500 },
+  { name: "Poonch", division: "jammu", charge: 500 },
+  { name: "Doda", division: "jammu", charge: 500 },
+  { name: "Kishtwar", division: "jammu", charge: 500 },
+  { name: "Ramban", division: "jammu", charge: 500 },
+]
+
 const urgencyLevels = [
   { id: "standard", label: "Standard", multiplier: 1, description: "3-5 business days" },
   { id: "express", label: "Express", multiplier: 1.5, description: "Within 48 hours" },
@@ -80,22 +109,127 @@ const urgencyLevels = [
 ]
 
 function BookingContent() {
+  const router = useRouter()
   const [step, setStep] = useState(1)
   const [selectedService, setSelectedService] = useState<string | null>(null)
   const [selectedUrgency, setSelectedUrgency] = useState("standard")
   const [paymentStatus, setPaymentStatus] = useState<"pending" | "verifying" | "success">("pending")
-  const [timeLeft, setTimeLeft] = useState(600) // 10 minutes
+  const [timeLeft, setTimeLeft] = useState(600)
   const [copied, setCopied] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState("")
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [proofPreview, setProofPreview] = useState<string>("")
   const [formData, setFormData] = useState({
     address: "",
     pincode: "",
+    district: "",
     date: "",
     timeSlot: "",
     notes: "",
   })
 
+  useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/auth/login?redirect_to=/booking')
+      }
+    }
+    checkAuth()
+  }, [router])
+
+  const saveBooking = async () => {
+    setSaving(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/auth/login')
+      return
+    }
+
+    const basePrice = selectedServiceData?.basePrice || 0
+    const urgencyMultiplier = selectedUrgencyData?.multiplier || 1
+    const districtData = districts.find(d => d.name === formData.district)
+    const districtCharge = districtData?.charge || 0
+    const urgencyCharge = Math.round(basePrice * (urgencyMultiplier - 1))
+    const gst = Math.round((basePrice * urgencyMultiplier + districtCharge) * 0.18)
+    const total = Math.round(basePrice * urgencyMultiplier + districtCharge + gst)
+
+    const { error: insertError } = await supabase.from('bookings').insert({
+      user_id: user.id,
+      user_email: user.email,
+      service_type: selectedServiceData?.title,
+      urgency: selectedUrgency,
+      address: formData.address,
+      pincode: formData.pincode,
+      district: formData.district,
+      notes: formData.notes,
+      scheduled_date: formData.date,
+      time_slot: formData.timeSlot,
+      status: 'pending',
+      base_amount: basePrice,
+      urgency_charge: urgencyCharge,
+      distance_charge: districtCharge,
+      gst,
+      total_amount: total,
+      payment_proof_url: proofPreview || null,
+    })
+
+    if (insertError) {
+      console.error('Booking save error:', insertError.message)
+      if (insertError.message?.includes('row-level security')) {
+        throw new Error('Database RLS policy is blocking the insert. Run the SQL schema in Supabase to create the necessary policies.')
+      }
+      if (insertError.message?.includes('column') && insertError.message?.includes('not exist')) {
+        throw new Error('Missing column in database. Run the SQL schema in Supabase to update the bookings table.')
+      }
+      if (insertError.message?.includes('does not exist')) {
+        throw new Error('Database table not found. Run the SQL schema in Supabase to create the required tables.')
+      }
+      throw new Error(insertError.message)
+    }
+
+    try {
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          status: 'pending',
+          bookingId: '',
+          serviceType: selectedServiceData?.title,
+          scheduledDate: formData.date,
+          timeSlot: formData.timeSlot,
+          customerName: user.user_metadata?.full_name || 'Customer',
+          totalAmount: total,
+          address: formData.address,
+          district: formData.district,
+        }),
+      })
+    } catch {
+      // Email notification is optional
+    }
+
+    setSaving(false)
+  }
+
   const selectedServiceData = serviceTypes.find(s => s.id === selectedService)
   const selectedUrgencyData = urgencyLevels.find(u => u.id === selectedUrgency)
+
+  const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File too large. Max 5MB.")
+      return
+    }
+    setProofFile(file)
+    const reader = new FileReader()
+    reader.onloadend = () => setProofPreview(reader.result as string)
+    reader.readAsDataURL(file)
+  }
 
   // Countdown timer for payment
   useEffect(() => {
@@ -107,12 +241,13 @@ function BookingContent() {
     }
   }, [step, paymentStatus, timeLeft])
 
-  // Mock pricing calculation
+  // Pricing calculation
   const basePrice = selectedServiceData?.basePrice || 0
   const urgencyMultiplier = selectedUrgencyData?.multiplier || 1
-  const distanceCharge = formData.pincode ? 150 : 0 // Mock distance charge
-  const gst = Math.round((basePrice * urgencyMultiplier + distanceCharge) * 0.18)
-  const total = Math.round(basePrice * urgencyMultiplier + distanceCharge + gst)
+  const districtData = districts.find(d => d.name === formData.district)
+  const districtCharge = districtData?.charge || 0
+  const gst = Math.round((basePrice * urgencyMultiplier + districtCharge) * 0.18)
+  const total = Math.round(basePrice * urgencyMultiplier + districtCharge + gst)
 
   // UPI payment string for QR code
   const upiPaymentString = `upi://pay?pa=securevision@upi&pn=SecureVision&am=${total}&cu=INR&tn=Booking-${Date.now()}`
@@ -137,8 +272,17 @@ function BookingContent() {
   // Simulate payment verification
   const handleVerifyPayment = () => {
     setPaymentStatus("verifying")
-    setTimeout(() => {
-      setPaymentStatus("success")
+    setSaveError("")
+    setTimeout(async () => {
+      try {
+        await saveBooking()
+        setPaymentStatus("success")
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to save booking'
+        setSaveError(message)
+        setPaymentStatus("pending")
+        setSaving(false)
+      }
     }, 2000)
   }
 
@@ -330,22 +474,42 @@ function BookingContent() {
                       </div>
                       <div className="grid sm:grid-cols-2 gap-4">
                         <div>
-                          <Label htmlFor="pincode">PIN Code</Label>
+                          <Label htmlFor="pincode" className="text-base font-semibold">PIN Code</Label>
                           <Input
                             id="pincode"
                             placeholder="Enter PIN code"
                             value={formData.pincode}
                             onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                            className="mt-2 bg-secondary/50 border-border/50"
+                            className="h-14 rounded-xl bg-secondary/50 border-border/50 text-base mt-2"
                           />
                         </div>
                         <div>
-                          <Label>City</Label>
-                          <Input
-                            value="Auto-detected from PIN"
-                            disabled
-                            className="mt-2 bg-secondary/30 border-border/30"
-                          />
+                          <Label htmlFor="district" className="text-base font-semibold">District</Label>
+                          <select
+                            id="district"
+                            value={formData.district}
+                            onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                            required
+                            className="w-full h-14 rounded-xl border border-border bg-secondary/50 px-4 text-base text-foreground appearance-none cursor-pointer mt-2 focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 16px center', backgroundSize: '16px' }}
+                          >
+                            <option value="">Select your district</option>
+                            <optgroup label="─ Kashmir Division ─">
+                              {districts.filter(d => d.division === 'kashmir').map(d => (
+                                <option key={d.name} value={d.name}>{d.name}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="─ Jammu Division ─">
+                              {districts.filter(d => d.division === 'jammu').map(d => (
+                                <option key={d.name} value={d.name}>{d.name}</option>
+                              ))}
+                            </optgroup>
+                          </select>
+                          {formData.district && (
+                            <p className="text-sm text-accent font-medium mt-2">
+                              District charge: ₹{districts.find(d => d.name === formData.district)?.charge || 0}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -449,6 +613,12 @@ function BookingContent() {
                             <span className="text-muted-foreground">Location</span>
                             <span className="text-foreground text-right max-w-[200px] truncate">{formData.address}</span>
                           </div>
+                          {formData.district && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">District</span>
+                              <span className="text-foreground">{formData.district}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -544,9 +714,13 @@ function BookingContent() {
                         <div className="mt-8 space-y-3">
                           <Button 
                             className="w-full max-w-sm bg-accent text-accent-foreground hover:bg-accent/90"
-                            onClick={() => window.location.href = "/dashboard"}
+                            onClick={() => router.push("/dashboard")}
                           >
-                            View in Dashboard
+                            {saving ? (
+                              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+                            ) : (
+                              "View in Dashboard"
+                            )}
                           </Button>
                           <Button 
                             variant="outline" 
@@ -658,6 +832,12 @@ function BookingContent() {
                                   <span className="text-muted-foreground">Time</span>
                                   <span className="text-foreground">{formData.timeSlot}</span>
                                 </div>
+                                {formData.district && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">District</span>
+                                    <span className="text-foreground">{formData.district}</span>
+                                  </div>
+                                )}
                                 <div className="pt-3 mt-3 border-t border-border/50">
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">Base Price</span>
@@ -670,8 +850,8 @@ function BookingContent() {
                                     </div>
                                   )}
                                   <div className="flex justify-between mt-2">
-                                    <span className="text-muted-foreground">Distance</span>
-                                    <span className="text-foreground">Rs {distanceCharge}</span>
+                                    <span className="text-muted-foreground">District Charge ({formData.district})</span>
+                                    <span className="text-foreground">Rs {districtCharge}</span>
                                   </div>
                                   <div className="flex justify-between mt-2">
                                     <span className="text-muted-foreground">GST (18%)</span>
@@ -686,9 +866,42 @@ function BookingContent() {
                             </div>
 
                             {/* Verify Payment Button */}
+                            {/* Payment Proof Upload */}
+                            <div className="p-5 rounded-xl bg-card border border-border/50">
+                              <h3 className="text-sm font-semibold text-foreground mb-3">Upload Payment Proof</h3>
+                              <p className="text-xs text-muted-foreground mb-4">
+                                Take a screenshot or photo of your UPI payment confirmation and upload it here.
+                              </p>
+                              {proofPreview ? (
+                                <div className="relative">
+                                  <img src={proofPreview} alt="Payment proof" className="w-full rounded-xl max-h-48 object-contain bg-secondary/50" />
+                                  <button
+                                    type="button"
+                                    onClick={() => { setProofFile(null); setProofPreview("") }}
+                                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <label className="flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed border-border/50 cursor-pointer hover:border-accent/50 transition-colors">
+                                  <Upload className="w-8 h-8 text-muted-foreground mb-2" />
+                                  <span className="text-sm text-muted-foreground">Click to upload screenshot</span>
+                                  <span className="text-xs text-muted-foreground/60 mt-1">PNG, JPG, JPEG (max 5MB)</span>
+                                  <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={handleProofUpload} className="hidden" />
+                                </label>
+                              )}
+                            </div>
+
+                            {saveError && (
+                              <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                                Failed to save booking: {saveError}. Please contact support.
+                              </div>
+                            )}
+
                             <Button 
                               onClick={handleVerifyPayment}
-                              disabled={paymentStatus === "verifying"}
+                              disabled={paymentStatus === "verifying" || !proofPreview}
                               className="h-14 w-full rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
                             >
                               {paymentStatus === "verifying" ? (
@@ -699,7 +912,7 @@ function BookingContent() {
                               ) : (
                                 <>
                                   <Smartphone className="w-4 h-4 mr-2" />
-                                  I&apos;ve Made the Payment
+                                  {proofPreview ? "Submit Payment Proof" : "Upload Proof First"}
                                 </>
                               )}
                             </Button>
@@ -740,8 +953,8 @@ function BookingContent() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Distance Charge</span>
-                    <span className="text-foreground">Rs {distanceCharge}</span>
+                    <span className="text-muted-foreground">District Charge{formData.district ? ` (${formData.district})` : ''}</span>
+                    <span className="text-foreground">Rs {districtCharge}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">GST (18%)</span>
